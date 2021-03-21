@@ -1,0 +1,203 @@
+service: web-forum-ts
+frameworkVersion: '2'
+
+package:
+  individually: true
+
+plugins:
+  - serverless-deployment-bucket
+  - serverless-export-outputs
+  - serverless-dotenv-plugin
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  lambdaHashingVersion: 20201221
+  profile: ${self:custom.profiles.${opt:stage, self:provider.stage, 'dev'}}
+  iamRoleStatements: # permissions for all of your functions can be set here
+    - Effect: Allow
+      Action: # Gives permission to DynamoDB tables in a specific region
+        - dynamodb:Query
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource:
+        Fn::GetAtt: [ForumThreads, Arn]
+  environment:
+    ForumTable:
+      Ref: ForumThreads
+    # For debugging purposes - maps exceptions back to TS file
+    NODE_OPTIONS: --enable-source-maps
+  deploymentBucket:
+    name: ians-cf-templates
+  versionFunctions: false
+
+  alb:
+    authorizers:
+      GoogleAuth:
+        type: 'oidc'
+        authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth'
+        clientId: ${env:GOOGLE_WEB_FORUM_CLIENT_ID}
+        clientSecret: ${env:GOOGLE_WEB_FORUM_CLIENT_SECRET}
+        issuer: 'https://accounts.google.com'
+        tokenEndpoint: 'https://oauth2.googleapis.com/token'
+        userInfoEndpoint: 'https://openidconnect.googleapis.com/v1/userinfo'
+        onUnauthenticatedRequest: 'authenticate'
+        scope: openid email profile
+
+custom:
+  profiles:
+    dev: default
+    prod: prodProfile
+  useDotenv: true
+
+layers:
+  commonLibs:
+    path: src/layers
+    compatibleRuntimes:
+      - nodejs12.x
+
+functions:
+  CreateThread:
+    handler: src/CreateThread/createThread.handler
+    package:
+      exclude:
+        - src/**
+      include:
+        - src/CreateThread/*
+    layers:
+      - !Ref CommonLibsLambdaLayer
+    events:
+      - alb:
+          authorizer: GoogleAuth
+          listenerArn: !Ref ForumListener
+          priority: 1
+          conditions:
+            path: /thread
+            method:
+              - POST
+  CreateForum:
+    handler: src/CreateForum/createForum.handler
+    package:
+      exclude:
+        - src/**
+      include:
+        - src/CreateForum/*
+    layers:
+      - !Ref CommonLibsLambdaLayer
+    events:
+      - alb:
+          authorizer: GoogleAuth
+          listenerArn: !Ref ForumListener
+          priority: 2
+          conditions:
+            path: /forum
+            method:
+              - POST
+  GetForums:
+    handler: src/GetForums/getForums.handler
+    package:
+      exclude:
+        - src/**
+      include:
+        - src/GetForums/*
+    layers:
+      - !Ref CommonLibsLambdaLayer
+    events:
+      - alb:
+          authorizer: GoogleAuth
+          listenerArn: !Ref ForumListener
+          priority: 4
+          conditions:
+            path: /forum
+            method:
+              - GET
+
+# you can add CloudFormation resource templates here
+resources:
+  Resources:
+    ForumThreads:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ForumThreadsTS
+        AttributeDefinitions:
+          - AttributeName: partitionKey
+            AttributeType: S
+          - AttributeName: sortKey
+            AttributeType: S
+          - AttributeName: threadReplySortKey
+            AttributeType: S
+          - AttributeName: threadDatetimeSortKey
+            AttributeType: S
+        KeySchema:
+          - AttributeName: partitionKey
+            KeyType: HASH
+          - AttributeName: sortKey
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: ThreadsByTime
+            KeySchema:
+              - AttributeName: partitionKey
+                KeyType: HASH
+              - AttributeName: threadDatetimeSortKey
+                KeyType: RANGE
+            Projection:
+              NonKeyAttributes:
+                - ThreadTitle
+                - Replies
+                - LastUpdatedTime
+              ProjectionType: INCLUDE
+            ProvisionedThroughput:
+              ReadCapacityUnits: 5
+              WriteCapacityUnits: 5
+          - IndexName: ThreadsByReplies
+            KeySchema:
+              - AttributeName: partitionKey
+                KeyType: HASH
+              - AttributeName: threadReplySortKey
+                KeyType: RANGE
+            Projection:
+              NonKeyAttributes:
+                - ThreadTitle
+                - Replies
+                - LastUpdatedTime
+              ProjectionType: INCLUDE
+            ProvisionedThroughput:
+              ReadCapacityUnits: 5
+              WriteCapacityUnits: 5
+        ProvisionedThroughput:
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
+
+    ForumLoadBalancer:
+      Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+      Properties:
+        Name: WebForumALB
+        Subnets:
+          - subnet-c4f0cda3
+          - subnet-4c5ea942
+    ForumListener:
+      Type: 'AWS::ElasticLoadBalancingV2::Listener'
+      Properties:
+        LoadBalancerArn:
+          Ref: ForumLoadBalancer
+        Certificates:
+          - CertificateArn: ${env:SSL_CERTIFICATE}
+        DefaultActions:
+          - Type: fixed-response
+            FixedResponseConfig:
+              StatusCode: 404
+              ContentType: text/plain
+              MessageBody: Invalid Request
+            Order: 1
+        Port: 443
+        Protocol:
+          HTTPS
+
+Outputs:
+  ForumBalancer:
+    Description: Make requests to WebForum
+    Value: !GetAtt ForumLoadBalancer.DNSName
+    Export:
+      Name: WebForumLoadBalancer
