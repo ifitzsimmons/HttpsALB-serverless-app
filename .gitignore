@@ -1,0 +1,10 @@
+package-lock.json
+yarn.lock
+node_modules
+.serverless
+integrationTests
+.DS_Store
+build
+mocks
+yarn-error.log
+.env

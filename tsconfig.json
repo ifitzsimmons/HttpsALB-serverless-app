@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "preserveConstEnums": true,
+    "strictNullChecks": true,
+    "sourceMap": true,
+    "allowJs": true,
+    "target": "es5",
+    "outDir": "./build",
+    "moduleResolution": "node",
+    "lib": ["es2015"],
+    "rootDir": "./",
+    "resolveJsonModule": true,
+    "paths": {
+      "/opt/nodejs/getUserData": ["./src/layers/nodejs/getUserData"],
+      "/opt/nodejs/formatResponse": ["./src/layers/nodejs/formatResponse"],
+  }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "**/*.test.ts"]
+}
