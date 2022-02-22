@@ -1,12 +1,12 @@
-# serverless-typescript-app
+# HttpsALB-serverless-app
 
 I love developing TypeScript Applications. I hate deploying TypeScript applications to AWS Lambda.
 
 This project serves as an example for deploying TypeScript applications to AWS using a little bit of custom configuration and the [serverless framework](https://www.serverless.com/).
 
-By making a few slight modifications to the `tsconfig.json`, `serverless.yml`, and `package.json` files, we can easily deploy TypeScript to AWS Lambda.
-
-For a better understanding of the project, I suggest reading the associated article: **[Build a TypeScript AWS Serverless Application](https://ifitzsimmons.medium.com/af1fdcd1a90?source=friends_link&sk=8d293ad1eb93c4fdfe86188bcfef8ec0)**.
+For a better understanding of the project, I suggest reading the associated articles: 
+1. **[Authenticate Lambda Requests with ALB and Google OAuth: Part 1](https://ifitzsimmons.medium.com/authenticate-lambda-requests-with-alb-and-google-oauth-part-1-751b96f4c517)**.
+2. **[Authenticate Lambda Requests with ALB and Google OAuth: Part 2](https://ifitzsimmons.medium.com/authenticate-lambda-requests-with-alb-and-google-oauth-part-2-955884480916)
 
 ## Get Started
 
